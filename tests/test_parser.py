@@ -17,6 +17,15 @@ from ts_logs.types import ParseResult
 # Helpers to build synthetic MLG binary data
 # ---------------------------------------------------------------------------
 
+# Fixed header sizes:
+#   6 (format) + 2 (version) + 4 (timestamp) + info_data_start field +
+#   4 (data_begin_index) + 2 (record_length) + 2 (num_logger_fields)
+# v1: info_data_start is u16 (2 bytes) → total 22 bytes
+# v2: info_data_start is i32 (4 bytes) → total 24 bytes
+_HEADER_FIXED_V1 = 22
+_HEADER_FIXED_V2 = 24
+
+
 def _build_mlg_v2(
     timestamp: int = 0,
     fields: list | None = None,
@@ -65,11 +74,7 @@ def _build_mlg_v2(
     # -----------------------------------------------------------------------
     # Compute header offsets
     # -----------------------------------------------------------------------
-    # Fixed header size for v2:
-    #   6 (format) + 2 (version) + 4 (timestamp) + 4 (info_data_start) +
-    #   4 (data_begin_index) + 2 (record_length) + 2 (num_logger_fields) = 24
-    HEADER_FIXED = 24
-    fields_start = HEADER_FIXED
+    fields_start = _HEADER_FIXED_V2
     fields_size = num_fields * logger_field_length
     bitfield_names = b""  # no bit fields
     info_data_start = fields_start + fields_size + len(bitfield_names)
@@ -107,19 +112,86 @@ def _build_mlg_v2(
     # -----------------------------------------------------------------------
     # Assemble
     # -----------------------------------------------------------------------
-    result = header + field_bytes + bitfield_names + info_b + b"\x00" + data_section
-    # Patch data_begin_index (offset 16, 4 bytes) in case sentinel accounting shifts
-    return result
+    return header + field_bytes + bitfield_names + info_b + b"\x00" + data_section
+
+
+def _build_mlg_v1(
+    fields: list | None = None,
+    data_blocks: list | None = None,
+) -> bytes:
+    """Build a minimal but valid v1 MLG binary blob.
+
+    The v1 header differs from v2:
+    - ``info_data_start`` is encoded as a u16 (2 bytes) instead of i32 (4 bytes).
+    - Logger field records are 55 bytes each (no category field).
+    """
+    if fields is None:
+        fields = [("rpm", "RPM", 0, 1.0, 0.0, 0)]
+    if data_blocks is None:
+        data_blocks = [[2000]]
+
+    # -----------------------------------------------------------------------
+    # Build logger-field definitions (v1, 55 bytes each, no category)
+    # -----------------------------------------------------------------------
+    field_bytes = b""
+    for name, units, display_style_code, scale, transform, digits in fields:
+        field_type = 2  # U16
+        name_b = name.encode("latin-1").ljust(34, b"\x00")[:34]
+        units_b = units.encode("latin-1").ljust(10, b"\x00")[:10]
+        field_bytes += struct.pack(">B", field_type)
+        field_bytes += name_b
+        field_bytes += units_b
+        field_bytes += struct.pack(">B", display_style_code)
+        field_bytes += struct.pack(">f", scale)
+        field_bytes += struct.pack(">f", transform)
+        field_bytes += struct.pack(">B", digits)
+        # no category in v1
+
+    num_fields = len(fields)
+    logger_field_length = 55  # v1
+
+    # -----------------------------------------------------------------------
+    # Compute header offsets
+    # -----------------------------------------------------------------------
+    fields_start = _HEADER_FIXED_V1
+    fields_size = num_fields * logger_field_length
+    bitfield_names = b""
+    info_data_start = fields_start + fields_size + len(bitfield_names)
+    data_begin_index = info_data_start + 1  # NUL sentinel
+
+    record_length = num_fields * 2  # U16 values
+
+    # -----------------------------------------------------------------------
+    # Build header (v1 uses u16 for info_data_start)
+    # -----------------------------------------------------------------------
+    header = b"MLVLG\x00"
+    header += struct.pack(">h", 1)                    # format version 1
+    header += struct.pack(">i", 0)                    # unix timestamp
+    header += struct.pack(">H", info_data_start)      # u16 in v1!
+    header += struct.pack(">i", data_begin_index)
+    header += struct.pack(">H", record_length)
+    header += struct.pack(">H", num_fields)
+
+    # -----------------------------------------------------------------------
+    # Build data blocks
+    # -----------------------------------------------------------------------
+    data_section = b""
+    for block_idx, block_values in enumerate(data_blocks):
+        data_section += struct.pack(">B", 0)
+        data_section += struct.pack(">B", block_idx & 0xFF)
+        data_section += struct.pack(">H", block_idx * 10)
+        for val in block_values:
+            data_section += struct.pack(">H", int(val))
+        data_section += struct.pack(">B", 0)  # CRC
+
+    return header + field_bytes + bitfield_names + b"\x00" + data_section
 
 
 def _build_mlg_v2_marker(message: str = "test marker") -> bytes:
     """Build a v2 MLG with a single marker block."""
-    fields = [("afr", "lambda", 0, 1.0, 0.0, 2, "")]
-    HEADER_FIXED = 24
-    logger_field_length = 89
-    fields_size = logger_field_length
-    info_data_start = HEADER_FIXED + fields_size
-    data_begin_index = info_data_start + 1  # 1-byte sentinel
+    fields_size = 89  # 1 field at 89 bytes each
+    info_data_start = _HEADER_FIXED_V2 + fields_size
+    data_begin_index = info_data_start + 1  # NUL sentinel byte
 
     header = b"MLVLG\x00"
     header += struct.pack(">h", 2)
@@ -274,7 +346,7 @@ class TestDataRecords:
         assert self.result["records"][0]["block_type"] == "field"
 
     def test_record_has_timestamp(self):
-        assert "timestamp" in self.result["records"][0]
+        assert "relative_timestamp" in self.result["records"][0]
 
     def test_first_record_rpm(self):
         assert self.result["records"][0]["rpm"] == 1500
@@ -303,6 +375,46 @@ class TestMarkerBlocks:
 
     def test_marker_message(self):
         assert self.result["records"][0]["message"] == "launch"
+
+
+class TestParseV1:
+    """Version-1 files use a 2-byte info_data_start and 55-byte field records."""
+
+    def setup_method(self):
+        self.result: ParseResult = parse(
+            _build_mlg_v1(
+                fields=[("tps", "pct", 0, 0.5, 0.0, 1)],
+                data_blocks=[[512], [1024]],
+            )
+        )
+
+    def test_format_version(self):
+        assert self.result["format_version"] == 1
+
+    def test_file_format(self):
+        assert self.result["file_format"] == "MLVLG"
+
+    def test_field_count(self):
+        assert len(self.result["fields"]) == 1
+
+    def test_field_name(self):
+        assert self.result["fields"][0]["name"] == "tps"
+
+    def test_field_scale(self):
+        assert abs(self.result["fields"][0]["scale"] - 0.5) < 1e-5  # type: ignore[typeddict-item]
+
+    def test_record_count(self):
+        assert len(self.result["records"]) == 2
+
+    def test_first_record_value(self):
+        assert self.result["records"][0]["tps"] == 512
+
+    def test_second_record_value(self):
+        assert self.result["records"][1]["tps"] == 1024
+
+    def test_v1_category_empty(self):
+        # v1 fields have no category field; parser returns empty string
+        assert self.result["fields"][0]["category"] == ""  # type: ignore[typeddict-item]
 
 
 class TestFormatErrors:

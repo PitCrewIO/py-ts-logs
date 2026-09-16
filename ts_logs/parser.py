@@ -24,7 +24,8 @@ from .types import (
 # Constants
 # ---------------------------------------------------------------------------
 
-MAGIC = b"MLVLG"
+# MAGIC constant is validated against the decoded string after reading
+FILE_MAGIC = "MLVLG"
 SUPPORTED_VERSIONS = (1, 2)
 
 FORMAT_LENGTH = 6
@@ -148,7 +149,12 @@ class _Parser:
     def _unpack(self, fmt: str) -> tuple:
         """Read and unpack a big-endian struct format string."""
         size = struct.calcsize(fmt)
-        values = struct.unpack_from(">" + fmt, self._data, self._offset)
+        try:
+            values = struct.unpack_from(">" + fmt, self._data, self._offset)
+        except struct.error as exc:
+            raise FormatError(
+                f"Truncated data at offset {self._offset}: {exc}"
+            ) from exc
         self._offset += size
         return values
 
@@ -234,7 +240,7 @@ class _Parser:
         # File format: 6 bytes
         file_format = self._read_string(FORMAT_LENGTH)
 
-        if file_format != "MLVLG":
+        if file_format != FILE_MAGIC:
             raise FormatError(
                 f"Unsupported file format: {file_format!r}. "
                 "Expected 'MLVLG'."
@@ -366,18 +372,28 @@ class _Parser:
 
             record: Dict[str, Union[int, float, str]] = {
                 "block_type": block_type,
-                "timestamp": timestamp,
+                "relative_timestamp": timestamp,
             }
 
             if block_type_code == 0:
                 # field data block
                 for field in fields:
-                    fmt_char, byte_size = _FIELD_FORMATS.get(
-                        field["type"], ("B", 1)
-                    )
-                    (value,) = struct.unpack_from(
-                        ">" + fmt_char, self._data, self._offset
-                    )
+                    field_fmt = _FIELD_FORMATS.get(field["type"])
+                    if field_fmt is None:
+                        raise FormatError(
+                            f"Unknown field type code {field['type']!r} "
+                            f"for field {field['name']!r}."
+                        )
+                    fmt_char, byte_size = field_fmt
+                    try:
+                        (value,) = struct.unpack_from(
+                            ">" + fmt_char, self._data, self._offset
+                        )
+                    except struct.error as exc:
+                        raise FormatError(
+                            f"Truncated data reading field {field['name']!r} "
+                            f"at offset {self._offset}: {exc}"
+                        ) from exc
                     self._offset += byte_size
                     record[field["name"]] = value
 
