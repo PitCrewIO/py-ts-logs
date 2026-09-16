@@ -276,8 +276,8 @@ class TestParseResultStructure:
         dt = datetime.fromtimestamp(1_700_000_000, tz=timezone.utc)
         assert self.result["timestamp"] == dt
 
-    def test_has_fields_list(self):
-        assert isinstance(self.result["fields"], list)
+    def test_has_fields_dict(self):
+        assert isinstance(self.result["fields"], dict)
 
     def test_has_records_list(self):
         assert isinstance(self.result["records"], list)
@@ -304,25 +304,25 @@ class TestFieldDefinitions:
         assert len(self.result["fields"]) == 1
 
     def test_field_name(self):
-        assert self.result["fields"][0]["name"] == "rpm"
+        assert "rpm" in self.result["fields"]
 
     def test_field_units(self):
-        assert self.result["fields"][0]["units"] == "RPM"
+        assert self.result["fields"]["rpm"]["units"] == "RPM"
 
     def test_field_display_style(self):
-        assert self.result["fields"][0]["display_style"] == "Float"
+        assert self.result["fields"]["rpm"]["display_style"] == "Float"
 
     def test_field_scale(self):
-        assert abs(self.result["fields"][0]["scale"] - 2.0) < 1e-5  # type: ignore[typeddict-item]
+        assert abs(self.result["fields"]["rpm"]["scale"] - 2.0) < 1e-5  # type: ignore[typeddict-item]
 
     def test_field_transform(self):
-        assert abs(self.result["fields"][0]["transform"] - 100.0) < 1e-5  # type: ignore[typeddict-item]
+        assert abs(self.result["fields"]["rpm"]["transform"] - 100.0) < 1e-5  # type: ignore[typeddict-item]
 
     def test_field_digits(self):
-        assert self.result["fields"][0]["digits"] == 1  # type: ignore[typeddict-item]
+        assert self.result["fields"]["rpm"]["digits"] == 1  # type: ignore[typeddict-item]
 
     def test_field_category(self):
-        assert self.result["fields"][0]["category"] == "Engine"  # type: ignore[typeddict-item]
+        assert self.result["fields"]["rpm"]["category"] == "Engine"  # type: ignore[typeddict-item]
 
 
 class TestDataRecords:
@@ -398,10 +398,10 @@ class TestParseV1:
         assert len(self.result["fields"]) == 1
 
     def test_field_name(self):
-        assert self.result["fields"][0]["name"] == "tps"
+        assert "tps" in self.result["fields"]
 
     def test_field_scale(self):
-        assert abs(self.result["fields"][0]["scale"] - 0.5) < 1e-5  # type: ignore[typeddict-item]
+        assert abs(self.result["fields"]["tps"]["scale"] - 0.5) < 1e-5  # type: ignore[typeddict-item]
 
     def test_record_count(self):
         assert len(self.result["records"]) == 2
@@ -414,7 +414,7 @@ class TestParseV1:
 
     def test_v1_category_empty(self):
         # v1 fields have no category field; parser returns empty string
-        assert self.result["fields"][0]["category"] == ""  # type: ignore[typeddict-item]
+        assert self.result["fields"]["tps"]["category"] == ""  # type: ignore[typeddict-item]
 
 
 class TestFormatErrors:

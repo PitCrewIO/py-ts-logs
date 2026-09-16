@@ -281,8 +281,8 @@ class _Parser:
         field_length: int,
         info_data_start: int,
         is_v2: bool,
-    ) -> Tuple[List[LoggerField], str]:
-        fields: List[LoggerField] = []
+    ) -> Tuple[Dict[str, LoggerField], str]:
+        fields: Dict[str, LoggerField] = {}
         fields_end = self._offset + num_fields * field_length
 
         while self._offset < fields_end:
@@ -297,8 +297,7 @@ class _Parser:
                 transform = self._read_f32()
                 digits = self._read_u8()
                 category = self._read_string(FIELD_CATEGORY_LENGTH) if is_v2 else ""
-                fields.append(
-                    LoggerFieldScalar(
+                fields[name] = LoggerFieldScalar(
                         type=ftype,
                         name=name,
                         units=units,
@@ -308,7 +307,6 @@ class _Parser:
                         digits=digits,
                         category=category,
                     )
-                )
             else:
                 # bit field
                 bit_field_style = _DISPLAY_STYLES.get(self._read_u8(), "Float")
@@ -316,8 +314,7 @@ class _Parser:
                 bits = self._read_u8()
                 _unused = self._read_bytes(FIELD_UNUSED_LENGTH)
                 category = self._read_string(FIELD_CATEGORY_LENGTH) if is_v2 else ""
-                fields.append(
-                    LoggerFieldBit(
+                fields[name] = LoggerFieldBit(
                         type=ftype,
                         name=name,
                         units=units,
@@ -327,7 +324,6 @@ class _Parser:
                         bits=bits,
                         category=category,
                     )
-                )
 
         # bit-field names string between field definitions and info data start
         bitfield_names_length = info_data_start - fields_end
@@ -340,7 +336,7 @@ class _Parser:
     # ------------------------------------------------------------------
 
     def _parse_data_blocks(
-        self, fields: List[LoggerField]
+        self, fields: Dict[str, LoggerField]
     ) -> List[Dict[str, Union[int, float, str]]]:
         records: List[Dict[str, Union[int, float, str]]] = []
 
@@ -368,7 +364,7 @@ class _Parser:
 
             if block_type_code == 0:
                 # field data block
-                for field in fields:
+                for field in fields.values():
                     field_fmt = _FIELD_FORMATS.get(field["type"])
                     if field_fmt is None:
                         raise FormatError(
