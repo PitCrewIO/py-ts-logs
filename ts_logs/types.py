@@ -36,7 +36,6 @@ class LoggerFieldScalar(TypedDict):
     """A scalar (numeric) logger field definition."""
 
     type: int  # 0-7
-    name: str
     units: str
     display_style: DisplayStyle
     scale: float
@@ -49,7 +48,6 @@ class LoggerFieldBit(TypedDict):
     """A bit-field logger field definition."""
 
     type: int  # 10-12
-    name: str
     units: str
     display_style: DisplayStyle
     bit_field_style: DisplayStyle
