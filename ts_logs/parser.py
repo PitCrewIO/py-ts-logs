@@ -299,7 +299,6 @@ class _Parser:
                 category = self._read_string(FIELD_CATEGORY_LENGTH) if is_v2 else ""
                 fields[name] = LoggerFieldScalar(
                         type=ftype,
-                        name=name,
                         units=units,
                         display_style=display_style,  # type: ignore[arg-type]
                         scale=scale,
@@ -316,7 +315,6 @@ class _Parser:
                 category = self._read_string(FIELD_CATEGORY_LENGTH) if is_v2 else ""
                 fields[name] = LoggerFieldBit(
                         type=ftype,
-                        name=name,
                         units=units,
                         display_style=display_style,  # type: ignore[arg-type]
                         bit_field_style=bit_field_style,  # type: ignore[arg-type]
@@ -364,12 +362,12 @@ class _Parser:
 
             if block_type_code == 0:
                 # field data block
-                for field in fields.values():
+                for field_name, field in fields.items():
                     field_fmt = _FIELD_FORMATS.get(field["type"])
                     if field_fmt is None:
                         raise FormatError(
                             f"Unknown field type code {field['type']!r} "
-                            f"for field {field['name']!r}."
+                            f"for field {field_name!r}."
                         )
                     fmt_char, byte_size = field_fmt
                     try:
@@ -378,11 +376,11 @@ class _Parser:
                         )
                     except struct.error as exc:
                         raise FormatError(
-                            f"Truncated data reading field {field['name']!r} "
+                            f"Truncated data reading field {field_name!r} "
                             f"at offset {self._offset}: {exc}"
                         ) from exc
                     self._offset += byte_size
-                    record[field["name"]] = value
+                    record[field_name] = value
 
                 # skip CRC byte
                 self._offset += 1
