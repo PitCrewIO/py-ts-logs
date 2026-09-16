@@ -35,7 +35,7 @@ result = ts_logs.parse(data)
 | `info`            | `str`                       | Free-text info section (may be empty)            |
 | `bit_field_names` | `str`                       | Packed bit-field name strings                    |
 | `fields`          | `List[LoggerField]`         | Channel/field definitions from the file header   |
-| `records`         | `List[Dict[str, ...]]`      | Parsed data records; each dict contains the channel name as key and raw integer/float value as value, plus `block_type` and `timestamp` |
+| `records`         | `List[Dict[str, ...]]`      | Parsed data records; each dict contains the channel name as key and raw integer/float value as value, plus `block_type` and `relative_timestamp` |
 
 `LoggerField` is a union of `LoggerFieldScalar` and `LoggerFieldBit`, both of
 which are `TypedDict`s.
