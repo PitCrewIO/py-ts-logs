@@ -74,5 +74,5 @@ class ParseResult(TypedDict):
     timestamp: datetime
     info: str
     bit_field_names: str
-    fields: List[LoggerField]
+    fields: Dict[str, LoggerField]
     records: List[Dict[str, Union[int, float, str]]]
