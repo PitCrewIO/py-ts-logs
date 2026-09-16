@@ -9,7 +9,7 @@ from __future__ import annotations
 import struct
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 from .types import (
     BlockType,
