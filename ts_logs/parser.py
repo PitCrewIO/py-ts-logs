@@ -190,7 +190,7 @@ class _Parser:
     def _read_string(self, length: int) -> str:
         """Read a fixed-length string, stripping NUL padding and wrapper quotes."""
         raw = self._read_bytes(length)
-        return raw.decode("latin-1").replace("\x00", "").strip().strip('"')
+        return raw.decode("latin-1").rstrip("\x00").strip().strip('"')
 
     def _jump(self, offset: int) -> None:
         """Move the parser cursor to a specific byte offset."""
