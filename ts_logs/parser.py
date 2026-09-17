@@ -224,6 +224,7 @@ class _Parser:
             info=info_data,
             bit_field_names=bitfield_names_raw,
             fields=fields,
+            record_length=record_length,
             records=records,
         )
 

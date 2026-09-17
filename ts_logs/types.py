@@ -73,4 +73,5 @@ class ParseResult(TypedDict):
     info: str
     bit_field_names: str
     fields: Dict[str, LoggerField]
+    record_length: int
     records: List[Dict[str, Union[int, float, str]]]
