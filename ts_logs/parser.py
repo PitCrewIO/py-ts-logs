@@ -124,6 +124,7 @@ class FormatError(ValueError):
 
 class _Parser:
     def __init__(self, data: bytes) -> None:
+        """Initialize the parser with raw log data."""
         self._data = data
         self._offset = 0
         self._length = len(data)
@@ -133,6 +134,7 @@ class _Parser:
     # ------------------------------------------------------------------
 
     def _read_bytes(self, n: int) -> bytes:
+        """Read exactly ``n`` bytes and advance the parser cursor."""
         end = self._offset + n
         if end > self._length:
             raise FormatError(
@@ -144,7 +146,7 @@ class _Parser:
         return chunk
 
     def _unpack(self, fmt: str) -> tuple:
-        """Read and unpack a big-endian struct format string."""
+        """Read and unpack a big-endian struct format string from the stream."""
         size = struct.calcsize(fmt)
         try:
             values = struct.unpack_from(">" + fmt, self._data, self._offset)
@@ -156,34 +158,42 @@ class _Parser:
         return values
 
     def _read_u8(self) -> int:
+        """Read an unsigned 8-bit integer from the current offset."""
         (v,) = self._unpack("B")
         return v
 
     def _read_i16(self) -> int:
+        """Read a signed 16-bit integer from the current offset."""
         (v,) = self._unpack("h")
         return v
 
     def _read_u16(self) -> int:
+        """Read an unsigned 16-bit integer from the current offset."""
         (v,) = self._unpack("H")
         return v
 
     def _read_i32(self) -> int:
+        """Read a signed 32-bit integer from the current offset."""
         (v,) = self._unpack("i")
         return v
 
     def _read_u32(self) -> int:
+        """Read an unsigned 32-bit integer from the current offset."""
         (v,) = self._unpack("I")
         return v
 
     def _read_f32(self) -> float:
+        """Read a 32-bit floating-point value from the current offset."""
         (v,) = self._unpack("f")
         return v
 
     def _read_string(self, length: int) -> str:
+        """Read a fixed-length string, stripping NUL padding and wrapper quotes."""
         raw = self._read_bytes(length)
         return raw.decode("latin-1").replace("\x00", "").strip().strip('"')
 
     def _jump(self, offset: int) -> None:
+        """Move the parser cursor to a specific byte offset."""
         self._offset = offset
 
     # ------------------------------------------------------------------
@@ -191,6 +201,7 @@ class _Parser:
     # ------------------------------------------------------------------
 
     def parse(self) -> ParseResult:
+        """Parse the TunerStudio MLG binary log and return the top-level result."""
         (
             file_format,
             format_version,
@@ -235,6 +246,7 @@ class _Parser:
     def _parse_header(
         self,
     ) -> Tuple[str, int, datetime, int, int, int, int]:
+        """Parse the file header and return the key MLG metadata values."""
         # File format: 6 bytes
         file_format = self._read_string(FORMAT_LENGTH)
 
@@ -289,6 +301,7 @@ class _Parser:
         info_data_start: int,
         is_v2: bool,
     ) -> Tuple[Dict[str, LoggerField], str]:
+        """Parse the logger field definitions and any trailing bitfield names."""
         fields: Dict[str, LoggerField] = {}
         fields_end = self._offset + num_fields * field_length
 
@@ -343,6 +356,7 @@ class _Parser:
     def _parse_data_blocks(
         self, fields: Dict[str, LoggerField]
     ) -> List[Dict[str, Union[int, float, str]]]:
+        """Parse the remaining body of the log into field and marker records."""
         records: List[Dict[str, Union[int, float, str]]] = []
 
         while self._offset < self._length:
