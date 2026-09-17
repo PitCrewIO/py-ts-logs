@@ -133,8 +133,14 @@ class _Parser:
     # ------------------------------------------------------------------
 
     def _read_bytes(self, n: int) -> bytes:
-        chunk = self._data[self._offset : self._offset + n]
-        self._offset += n
+        end = self._offset + n
+        if end > self._length:
+            raise FormatError(
+                f"Truncated data at offset {self._offset}: needed {n} bytes, "
+                f"have {self._length - self._offset}"
+            )
+        chunk = self._data[self._offset : end]
+        self._offset = end
         return chunk
 
     def _unpack(self, fmt: str) -> tuple:
