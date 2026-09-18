@@ -1,0 +1,13 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: py-ts-logs
+  description: Python module for parsing EFI Analytics TunerStudio logs for Megasquirt
+  annotations:
+    github.com/project-slug: PitCrewIO/py-ts-logs
+spec:
+  type: library
+  lifecycle: production
+  owner: group:00gjdgxs1ur6lsu
+  system: pitcrew
